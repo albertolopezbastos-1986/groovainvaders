@@ -6,6 +6,27 @@ Esta entrega prepara el codigo y la configuracion. Todavia hay que exportar el j
 
 ## 1. Exportar el juego actualizado
 
+### Desde la terminal, sin abrir la interfaz
+
+```sh
+npm run export
+npm run dev
+```
+
+`export` detecta el ejecutable del editor guardado en `.godot/editor/project_metadata.cfg` (incluido Godot de Windows desde WSL), importa recursos, ejecuta Godot en modo headless y exporta el preset Web a `web/index.html`. Despues corre automaticamente el build, que incorpora el campo nativo y verifica los archivos. No publica en Netlify ni hace push. Ya se comprobo con el Godot 4.7.2 instalado en esta maquina y sus plantillas Web.
+
+Si estas en otra maquina, podes agregar `godot` o `godot4` al PATH, o indicar la ruta del motor:
+
+```sh
+GODOT_BIN="/ruta/a/godot" npm run export
+```
+
+En PowerShell, establece `$env:GODOT_BIN` antes de ejecutar el comando. Se necesitan el editor y las plantillas de la misma version que el proyecto. Si faltan las plantillas, Godot mostrara el error; el script no instala ni descarga nada automaticamente.
+
+La exportacion es necesaria porque el navegador no ejecuta directamente archivos `.gd` o `.tscn`: usa los archivos HTML, JavaScript, WASM y PCK que produce Godot. `npm run dev` solo sirve esos archivos y las funciones de Netlify. `npm run build` valida y prepara una exportacion existente; no invoca el motor.
+
+### Desde la interfaz de Godot (alternativa)
+
 1. Abri este proyecto en Godot 4 Standard y espera a que importe `OnlineScores.gd` y los recursos.
 2. En **Proyecto > Exportar > Web**, instala las plantillas si falta hacerlo.
 3. Exporta como **`web/index.html`** dentro de este proyecto. La ruta ya esta configurada en `export_presets.cfg`; crea la carpeta `web` si hace falta.

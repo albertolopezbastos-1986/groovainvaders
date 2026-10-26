@@ -16,11 +16,13 @@ Controles:
 Controles tactiles (aparecen automaticamente en celulares):
 - Botones < y >: mantener para mover.
 - FUEGO: mantener para disparar; se puede mover y disparar con dos dedos.
-- PAUSA / CONTINUAR: pausar o seguir.
+- Sin boton de pausa en mobile: controles de movimiento y FUEGO mas grandes.
+- Si se pausa al perder foco, tocar el cartel central para continuar.
 - Tocar el cartel central para empezar o reiniciar.
 Los controles tienen una franja propia debajo del juego.
 El juego detecta Android, iPhone/iPad y navegadores moviles.
-La pantalla se adapta al formato vertical u horizontal sin deformar sprites.
+El campo mantiene formato vertical 9:16 (540x960) en PC y mobile.
+La zona jugable siempre mide 540x800; el espacio sobrante queda negro.
 Girar el celular conserva la partida. En PC se muestra el juego con teclado.
 Para probar en navegador de escritorio, activar la emulacion de un celular
 en las herramientas del navegador y recargar la pagina.
@@ -28,8 +30,51 @@ Despues de modificar el proyecto, exportar Web de nuevo y subir todos los archiv
 
 Incluye: 40 enemigos por oleada, enemigos que disparan, puntuacion,
 3 vidas, barreras destructibles, particulas, multiples oleadas.
-Los sprites estan incluidos en assets/aliens: fucsia, verde agua y azul.
+Los aliens se dibujan en pixeles por codigo: fucsia, verde agua y azul.
+Tienen tres frames de tentaculos y un brillo suave; tambien el jefe.
 Cada oleada tiene una fila fucsia, una verde agua y dos azules.
+Cada fila mantiene su propia velocidad y direccion durante la oleada;
+sus aliens se mueven juntos y rebotan sin invertir las otras filas.
+Las velocidades suben con el nivel, con limite en niveles avanzados.
+
+Power-ups:
+- El primer bonus queda listo tras 20-30 segundos; luego tras 30-45 segundos.
+- Al estar listo, el proximo alien derrotado por un disparo del jugador lo suelta
+  desde su posicion, con un destello. No aparece solo desde arriba.
+- Si no hay bajas al vencer el intervalo, queda pendiente hasta la proxima.
+- Icono P con rayo pixelado y brillo pulsante, a mitad de velocidad de las balas aliens.
+- Al recogerlo suena un arpegio arcade corto, incluso si el escudo ya estaba activo.
+- Recogerlo con la nave activa un efecto aleatorio:
+  22,5% escudo frontal violeta que absorbe un impacto (si ya lo tenes, no cambia nada).
+  22,5% doble cadencia de disparo por 10 segundos (otro bonus renueva el tiempo).
+  22,5% mejora de armamento: primero doble canon azul y doble disparo permanente;
+      al recoger otra mejora, triple canon violeta por 10 segundos y vuelve a doble.
+      Otra mejora durante triple renueva esos 10 segundos.
+  22,5% rayos perforantes por 10 segundos: atraviesan aliens sin desaparecer.
+      Cada rayo solo dana una vez a cada alien o jefe. Repetir renueva el tiempo.
+  10% restauracion completa de las barreras, incluidos los bloques destruidos.
+- Escudo, rapidez y armamento se acumulan: los rayos salen de cada pico.
+- Rapidez y triple tienen tiempos independientes; al vencer uno no se pierde el otro.
+- Las naves doble y triple son mas grandes, con nuevos detalles y colores.
+- Bomba rara con icono redondo y mecha: primera tras 90-150 segundos;
+  luego cada 120-180 segundos, soltada por el proximo alien derrotado.
+- Cae un 20% mas rapido que las P y tiene un margen de recogida mayor.
+- Al recogerla destruye todos los aliens actuales, suma sus puntos exactos,
+  elimina rayos y suelta una P si su temporizador ya estaba listo.
+- Explosion 8-bit propia y breve destello; no borra los otros bonus activos.
+- 1UP con icono propio: agrega una vida, con los mismos rangos raros que la bomba.
+  Tiene un contador independiente: ambos pueden caer de la misma baja.
+- Perforacion combina con escudo, rapidez y doble/triple canon; su tiempo es propio.
+- Pausar congela los tiempos; los efectos se mantienen entre oleadas.
+- Reiniciar elimina los efectos y power-ups de la partida anterior.
+- Cada nivel multiplo de 10 tiene un jefe unico de 168x168, lento y con 50 HP.
+- Dispara rafagas de tres rayos cada 1,32 segundos y muestra barra de vida.
+- Cada rayo del jugador resta un HP; solo al derrotarlo se suman sus puntos.
+- Tras el jefe vuelven las oleadas normales. La bomba tambien elimina al jefe.
+- Fondo oscurecido al 55%; BACKGROUND_DARKNESS en Main.gd ajusta el overlay.
+- Pruebas: godot --headless --path . --script res://tests/test_powerups.gd
+- Pruebas de jefes y formato: godot --headless --path . --script res://tests/test_bosses.gd
+- Pruebas de filas y animacion: godot --headless --path . --script res://tests/test_alien_rows.gd
 
 Todo el codigo del juego se encuentra en Main.gd.
 
@@ -61,6 +106,10 @@ Game Over y ranking:
 - En celular se puede tocar el campo para abrir el teclado y deslizar el panel.
 
 Publicacion y pruebas:
+Para exportar desde terminal sin abrir Godot: npm run export
+Este comando detecta el motor, exporta a web/index.html y ejecuta el build.
+Para probar localmente despues: npm run dev
+Exportar y probar localmente no hacen deploy ni push.
 Leer PUBLICAR_NETLIFY.md. Exportar a web/index.html y publicar codigo + funciones
 con Netlify CLI o Git. Arrastrar solamente la carpeta del juego a Drop no alcanza.
 npm test: pruebas del backend.

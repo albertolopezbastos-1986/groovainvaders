@@ -7,7 +7,8 @@ test('campo nativo conserva foco al redimensionar, sincroniza el nombre y acepta
   const elements = [];
   const gestures = {};
   let focusCount = 0;
-  const canvas = { getBoundingClientRect: () => ({ left: 10, top: 20, width: 390, height: 844 }) };
+  let bounds = { left: 10, top: 20, width: 390, height: 844 };
+  const canvas = { getBoundingClientRect: () => bounds };
   const document = {
     head: { appendChild() {} }, body: { appendChild(element) { elements.push(element); } },
     activeElement: null, fullscreenElement: null,
@@ -40,7 +41,7 @@ test('campo nativo conserva foco al redimensionar, sincroniza el nombre y acepta
   assert.equal(focusCount, 1, 'Redimensionar no vuelve a enfocar');
   document.activeElement = null;
   let captured = false;
-  gestures.touchend({ target: canvas, changedTouches: [{ clientX: 40, clientY: 220 }], preventDefault() {}, stopImmediatePropagation() { captured = true; } });
+  gestures.touchend({ target: canvas, changedTouches: [{ clientX: parseFloat(field.style.left) + 10, clientY: parseFloat(field.style.top) + 10 }], preventDefault() {}, stopImmediatePropagation() { captured = true; } });
   assert.equal(document.activeElement, field, 'Tocar el campo enfoca dentro del gesto nativo');
   assert.ok(captured, 'El canvas no recibe el toque del campo');
   let prevented = false;
@@ -52,6 +53,11 @@ test('campo nativo conserva foco al redimensionar, sincroniza el nombre y acepta
   assert.equal(field.style.display, 'none');
   window.PixelNameInput.update({ ...state, session: 'run2' });
   assert.equal(field.value, '');
+  bounds = { left: 0, top: 0, width: 1920, height: 1080 };
+  window.PixelNameInput.update({ ...state, height: 960 });
+  assert.equal(parseFloat(field.style.left), (1920 - 540 * 1.125) / 2 + state.x * 1.125);
+  assert.equal(parseFloat(field.style.top), state.y * 1.125);
+  assert.equal(parseFloat(field.style.width), state.w * 1.125);
   runInNewContext(script, context);
   assert.equal(elements.length, 1);
 });

@@ -5,6 +5,7 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "build": "node scripts/check-web.mjs",
+    "export": "node scripts/export-game.mjs",
     "deploy": "npx netlify-cli deploy --build --prod --context production --dir web --functions netlify/functions && node scripts/verify-deploy.mjs https://groovaipa.netlify.app",
     "verify:deploy": "node scripts/verify-deploy.mjs https://groovaipa.netlify.app",
     "test": "node tests/backend.test.mjs && node tests/web-build.test.mjs && node tests/mobile-name.test.mjs",

@@ -48,7 +48,7 @@ const packFiles = readdirSync('web').filter((name) => name.endsWith('.pck'));
 const packTime = Math.max(...packFiles.map((name) => statSync(join('web', name)).mtimeMs));
 for (const source of sources) {
   if (existsSync(source) && statSync(source).mtimeMs > packTime) {
-    throw new Error(`La exportacion Web esta desactualizada (${source} es mas nuevo que el .pck). En Godot: Proyecto > Exportar > Web > Exportar proyecto a web/index.html; despues repeti el deploy.`);
+    throw new Error(`La exportacion Web esta desactualizada (${source} es mas nuevo que el .pck). En Godot: Proyecto > Exportar > Web > Exportar proyecto a web/index.html o al destino configurado; despues ejecuta npm run build. Para probar localmente, ejecuta npm run dev.`);
   }
 }
 let html = readFileSync('web/index.html', 'utf8');

@@ -1,7 +1,7 @@
 extends Node2D
 
 # INVASORES PIXEL - un mini Space Invaders para Godot 4.
-# Aliens con sprites neon; el resto se dibuja por codigo.
+# Aliens animados y efectos dibujados con pixeles por codigo.
 
 var W := 960.0
 var H := 720.0
@@ -9,7 +9,6 @@ var SCREEN_H := 720.0
 var TOUCH_LEFT := Rect2()
 var TOUCH_RIGHT := Rect2()
 var TOUCH_FIRE := Rect2()
-var TOUCH_PAUSE := Rect2()
 var TOUCH_START := Rect2()
 var PLAYER_Y := 645.0
 var mobile := false
@@ -18,6 +17,37 @@ var last_window_size := Vector2i.ZERO
 const PLAYER_SPEED := 410.0
 const SHOT_SPEED := 590.0
 const ENEMY_SHOT_SPEED := 260.0
+const NORMAL_SHOT_DELAY := 0.23
+const RAPID_FIRE_DURATION := 10.0
+const TRIPLE_FIRE_DURATION := 10.0
+const PIERCING_DURATION := 10.0
+const FIRST_POWER_DELAY := Vector2(20.0, 30.0)
+const NEXT_POWER_DELAY := Vector2(30.0, 45.0)
+const FIRST_BOMB_DELAY := Vector2(90.0, 150.0)
+const NEXT_BOMB_DELAY := Vector2(120.0, 180.0)
+const GAME_WIDTH := 540.0
+const GAME_HEIGHT := 960.0
+const FIELD_HEIGHT := 800.0
+const BOSS_HEALTH := 50
+const BOSS_SIZE := 168.0
+const BOSS_SHOT_INTERVAL := 1.32
+const ALIEN_FRAME_DURATION := 0.18
+const BACKGROUND_DARKNESS := 0.55
+const VIOLET := Color(0.76, 0.40, 1.0)
+const SHIP_BLUE := Color(0.25, 0.52, 1.0)
+
+const POWER_P := ["11110", "11011", "11011", "11110", "11000", "11000", "11000"]
+const POWER_BOLT := [
+	"000011110", "000111100", "001111000", "011110000",
+	"111111110", "000111100", "001111000", "011110000", "011100000", "011000000", "010000000"
+]
+const BOMB_SPRITE := [
+	"0000000000000", "0000000011000", "0000000110000",
+	"0000001100000", "0000011100000", "0001111111000",
+	"0011111111100", "0111111111110", "0111111111110",
+	"1111111111111", "1111111111111", "0111111111110",
+	"0011111111100", "0001111111000", "0000011100000"
+]
 
 const CYAN := Color(0.36, 0.92, 1.0)
 const PINK := Color(1.0, 0.36, 0.66)
@@ -30,6 +60,8 @@ const ARCADE_FONT: FontFile = preload("res://assets/fonts/PressStart2P-Regular.t
 const MUSIC: AudioStreamOggVorbis = preload("res://assets/audio/8bit-NN.ogg")
 const ALIEN_SHOT_SOUND: AudioStream = preload("res://assets/audio/alien_shot.wav")
 const ALIEN_EXPLOSION_SOUND: AudioStream = preload("res://assets/audio/alien_explosion.wav")
+const POWER_PICKUP_SOUND: AudioStream = preload("res://assets/audio/power_pickup.wav")
+const BOMB_SOUND: AudioStream = preload("res://assets/audio/bomb_explosion.wav")
 const OnlineScoreService = preload("res://OnlineScores.gd")
 
 const PLAYER_SPRITE := [
@@ -42,10 +74,39 @@ const PLAYER_SPRITE := [
     "1110000000111"
 ]
 
-const ALIEN_TEXTURES := [
-	preload("res://assets/aliens/alien_fucsia.png"),
-	preload("res://assets/aliens/alien_verde.png"),
-	preload("res://assets/aliens/alien_azul.png")
+const PLAYER_DOUBLE_SPRITE := [
+	"00001000000010000",
+	"00011100000111000",
+	"00011100000111000",
+	"00111110001111100",
+	"01111111011111110",
+	"11111111111111111",
+	"11111111111111111",
+	"11101111111110111",
+	"11000111011100011"
+]
+
+const PLAYER_TRIPLE_SPRITE := [
+	"0001000001000001000",
+	"0011100011100011100",
+	"0011100111110011100",
+	"0111111111111111110",
+	"1111111111111111111",
+	"1111111111111111111",
+	"1111011111111101111",
+	"1110011111111100111",
+	"1100001110111000011",
+	"1000001100011000001"
+]
+
+const ALIEN_HEAD := [
+	"0000111110000", "0011111111100", "0111111111110",
+	"1110011100111", "1110001000111", "1111010101111", "0111111111110"
+]
+const ALIEN_LEGS := [
+	["0011101011100", "0110001000110", "1100010100011", "0100100010010"],
+	["0011101011100", "0011001001100", "0001101011000", "0011001001100"],
+	["0011101011100", "0010010100100", "0110100010110", "1101000001011"]
 ]
 
 var mode := "menu"  # menu, playing, paused, game_over
@@ -58,6 +119,23 @@ var enemy_shot_delay := 1.0
 var invulnerable := 0.0
 var enemy_direction := 1.0
 var clock := 0.0
+var alien_animation_clock := 0.0
+var alien_rows: Array[Dictionary] = []
+var power_ups: Array[Dictionary] = []
+var power_drop_delay := 0.0
+var bomb_drop_delay := 0.0
+var life_drop_delay := 0.0
+var bomb_flash := 0.0
+var bomb_wave_delay := 0.0
+var shield_active := false
+var shield_flash := 0.0
+var rapid_fire_left := 0.0
+var piercing_left := 0.0
+var next_alien_id := 0
+var dual_cannons := false
+var triple_fire_left := 0.0
+var power_message := ""
+var power_message_left := 0.0
 
 var aliens: Array = []
 var player_shots: Array = []
@@ -69,6 +147,8 @@ var touch_actions: Dictionary = {}
 var music_player: AudioStreamPlayer
 var alien_shot_player: AudioStreamPlayer
 var alien_explosion_player: AudioStreamPlayer
+var power_pickup_player: AudioStreamPlayer
+var bomb_player: AudioStreamPlayer
 var online_scores: OnlineScoreService
 var score_submitted := false
 var score_saving := false
@@ -199,6 +279,12 @@ func _finish_game() -> void:
 	if mode == "game_over":
 		return
 	mode = "game_over"
+	power_ups.clear()
+	shield_active = false
+	rapid_fire_left = 0.0
+	piercing_left = 0.0
+	dual_cannons = false
+	triple_fire_left = 0.0
 	touch_actions.clear()
 	score_submitted = false
 	score_saving = false
@@ -303,6 +389,8 @@ func _setup_audio() -> void:
 	music_player = _create_audio_player("Music", looping_music, -16.0, 1)
 	alien_shot_player = _create_audio_player("AlienShot", ALIEN_SHOT_SOUND, -22.0, 2)
 	alien_explosion_player = _create_audio_player("AlienExplosion", ALIEN_EXPLOSION_SOUND, -17.0, 4)
+	power_pickup_player = _create_audio_player("PowerPickup", POWER_PICKUP_SOUND, -17.0, 2)
+	bomb_player = _create_audio_player("Bomb", BOMB_SOUND, -13.0, 1)
 	_ensure_music_playing()
 
 
@@ -356,20 +444,15 @@ func _update_layout() -> void:
 		return
 	last_window_size = window_size
 	var old_size := Vector2(W, H)
-	var aspect := float(window_size.x) / float(window_size.y)
-	portrait = mobile and aspect < 1.0
-	if portrait:
-		SCREEN_H = maxf(960.0, 540.0 / aspect)
-	elif mobile:
-		SCREEN_H = 840.0
-	else:
-		SCREEN_H = maxf(720.0, 960.0 / aspect)
-	W = roundf(SCREEN_H * aspect)
-	var controls_height := 210.0 if portrait else 120.0
-	H = SCREEN_H - controls_height if mobile else SCREEN_H
+	# Mismo campo 9:16 en todos los dispositivos: solo cambia la escala.
+	portrait = true
+	W = GAME_WIDTH
+	SCREEN_H = GAME_HEIGHT
+	H = FIELD_HEIGHT
 	PLAYER_Y = H - 75.0
 	# Una misma escala en ambos ejes: los sprites no se deforman.
 	get_window().content_scale_size = Vector2i(int(W), int(SCREEN_H))
+	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	touch_actions.clear()
 	_layout_touch_controls()
 	_remap_game(old_size)
@@ -378,16 +461,9 @@ func _update_layout() -> void:
 
 
 func _layout_touch_controls() -> void:
-	if portrait:
-		TOUCH_LEFT = Rect2(20, H + 96, 100, 92)
-		TOUCH_RIGHT = Rect2(136, H + 96, 100, 92)
-		TOUCH_FIRE = Rect2(W - 168, H + 96, 148, 92)
-		TOUCH_PAUSE = Rect2(W / 2.0 - 110, H + 16, 220, 64)
-	else:
-		TOUCH_LEFT = Rect2(28, H + 16, 112, 88)
-		TOUCH_RIGHT = Rect2(156, H + 16, 112, 88)
-		TOUCH_FIRE = Rect2(W - 200, H + 16, 172, 88)
-		TOUCH_PAUSE = Rect2(W / 2.0 - 110, H + 28, 220, 64)
+	TOUCH_LEFT = Rect2(12, H + 12, 142, 136)
+	TOUCH_RIGHT = Rect2(166, H + 12, 142, 136)
+	TOUCH_FIRE = Rect2(326, H + 12, 202, 136)
 	TOUCH_START = Rect2(24, H / 2.0 - 40, W - 48, 150)
 
 
@@ -397,13 +473,16 @@ func _remap_position(point: Vector2, old_size: Vector2) -> Vector2:
 
 func _remap_game(old_size: Vector2) -> void:
 	# Girar el telefono conserva enemigos, vidas, puntuacion y barreras.
-	player_x = clampf(player_x * W / old_size.x, 38.0, W - 38.0)
-	for collection in [aliens, barriers, particles, stars]:
+	player_x = clampf(player_x * W / old_size.x, _player_margin(), W - _player_margin())
+	for collection in [aliens, barriers, particles, stars, power_ups]:
 		for item in collection:
 			item["p"] = _remap_position(item["p"], old_size)
 	for collection in [player_shots, enemy_shots]:
 		for i in range(collection.size()):
-			collection[i] = _remap_position(collection[i], old_size)
+			if collection[i] is Dictionary:
+				collection[i]["p"] = _remap_position(collection[i]["p"], old_size)
+			else:
+				collection[i] = _remap_position(collection[i], old_size)
 
 
 func _handle_keyboard(event: InputEventKey) -> void:
@@ -490,7 +569,7 @@ func _touch_action(position: Vector2) -> String:
 func _press_touch(index: int, position: Vector2) -> void:
 	if mode == "menu" and TOUCH_START.has_point(position):
 		_start_game()
-	elif mobile and (mode == "playing" or mode == "paused") and TOUCH_PAUSE.has_point(position):
+	elif mode == "paused" and TOUCH_START.has_point(position):
 		_toggle_pause()
 	else:
 		touch_actions[index] = _touch_action(position)
@@ -514,6 +593,21 @@ func _start_game() -> void:
 	barriers.clear()
 	shot_delay = 0.0
 	invulnerable = 0.0
+	alien_animation_clock = 0.0
+	power_ups.clear()
+	power_drop_delay = randf_range(FIRST_POWER_DELAY.x, FIRST_POWER_DELAY.y)
+	bomb_drop_delay = randf_range(FIRST_BOMB_DELAY.x, FIRST_BOMB_DELAY.y)
+	life_drop_delay = randf_range(FIRST_BOMB_DELAY.x, FIRST_BOMB_DELAY.y)
+	bomb_flash = 0.0
+	bomb_wave_delay = 0.0
+	shield_active = false
+	shield_flash = 0.0
+	rapid_fire_left = 0.0
+	piercing_left = 0.0
+	dual_cannons = false
+	triple_fire_left = 0.0
+	power_message = ""
+	power_message_left = 0.0
 	_create_barriers()
 	_spawn_wave()
 	mode = "playing"
@@ -521,21 +615,39 @@ func _start_game() -> void:
 
 func _spawn_wave() -> void:
 	aliens.clear()
+	alien_rows.clear()
 	player_shots.clear()
 	enemy_shots.clear()
 	enemy_direction = 1.0
 	enemy_shot_delay = 1.25
+	if wave % 10 == 0:
+		next_alien_id += 1
+		aliens.append({"id": next_alien_id, "p": Vector2(W / 2.0, 205.0), "kind": posmod(int(wave / 10) - 1, 3), "col": 0, "boss": true, "hp": BOSS_HEALTH, "flash": 0.0})
+		enemy_shot_delay = BOSS_SHOT_INTERVAL
+		return
+	var speed_slots := [0, 1, 2, 3]
+	speed_slots.shuffle()
+	var first_direction := -1.0 if randf() < 0.5 else 1.0
+	var base_speed := 28.0 + minf((wave - 1) * 2.0, 72.0)
 	for row in range(4):
+		alien_rows.append({
+			"speed": base_speed + speed_slots[row] * 5.0 + randf_range(0.0, 3.0),
+			"direction": first_direction if row % 2 == 0 else -first_direction
+		})
 		for col in range(10):
+			next_alien_id += 1
 			aliens.append({
+				"id": next_alien_id,
 				"p": Vector2(W * 0.15 + col * W * 0.077, 132.0 + row * 56.0),
 				# Una fila fucsia, una verde agua y dos azules.
 				"kind": mini(row, 2),
+				"row": row,
 				"col": col
 			})
 
 
 func _create_barriers() -> void:
+	barriers.clear()
 	var bunker_count := 3 if portrait else 4
 	for bunker in range(bunker_count):
 		var bx := W * (bunker + 0.5) / bunker_count - 45.0
@@ -552,6 +664,7 @@ func _process(delta: float) -> void:
 	_update_particles(delta)
 
 	if mode == "playing":
+		alien_animation_clock += delta
 		_update_game(delta)
 
 	queue_redraw()
@@ -581,6 +694,9 @@ func _sync_mobile_name_input() -> void:
 func _update_game(delta: float) -> void:
 	shot_delay = maxf(0.0, shot_delay - delta)
 	invulnerable = maxf(0.0, invulnerable - delta)
+	_update_player_bonuses(delta)
+	bomb_flash = maxf(0.0, bomb_flash - delta)
+	bomb_wave_delay = maxf(0.0, bomb_wave_delay - delta)
 	enemy_shot_delay -= delta
 
 	var axis := 0.0
@@ -588,32 +704,26 @@ func _update_game(delta: float) -> void:
 		axis -= 1.0
 	if _key_down(KEY_RIGHT) or _key_down(KEY_D) or touch_actions.values().has("right"):
 		axis += 1.0
-	player_x = clampf(player_x + axis * PLAYER_SPEED * delta, 38.0, W - 38.0)
+	player_x = clampf(player_x + axis * PLAYER_SPEED * delta, _player_margin(), W - _player_margin())
 
 	if (_key_down(KEY_SPACE) or touch_actions.values().has("fire")) and shot_delay <= 0.0:
-		player_shots.append(Vector2(player_x, PLAYER_Y - 28.0))
-		shot_delay = 0.23
+		_fire_player_shots()
+		shot_delay = NORMAL_SHOT_DELAY * (0.5 if rapid_fire_left > 0.0 else 1.0)
 
 	_move_aliens(delta)
 	if mode != "playing":
 		return
+	_update_power_ups(delta)
 
 	if enemy_shot_delay <= 0.0 and not aliens.is_empty():
-		var shooter: Dictionary = aliens.pick_random()
-		# El disparo sale del alien mas bajo de esa columna.
-		for alien in aliens:
-			if alien["col"] == shooter["col"] and alien["p"].y > shooter["p"].y:
-				shooter = alien
-		enemy_shots.append(shooter["p"] + Vector2(0, 23))
-		alien_shot_player.play()
-		enemy_shot_delay = maxf(0.36, 1.15 - wave * 0.07) * randf_range(0.75, 1.35)
+		_enemy_volley()
 
 	_update_player_shots(delta)
 	_update_enemy_shots(delta)
 	if mode != "playing":
 		return
 
-	if aliens.is_empty():
+	if aliens.is_empty() and bomb_wave_delay <= 0.0:
 		wave += 1
 		_spawn_wave()
 
@@ -622,23 +732,249 @@ func _key_down(key: Key) -> bool:
 	return Input.is_physical_key_pressed(key) or Input.is_key_pressed(key)
 
 
+func _enemy_volley() -> void:
+	if aliens.is_empty():
+		return
+	var shooter: Dictionary = aliens.pick_random()
+	if shooter.get("boss", false):
+		for offset in [-54.0, 0.0, 54.0]:
+			enemy_shots.append(shooter["p"] + Vector2(offset, BOSS_SIZE * 0.40))
+		enemy_shot_delay = BOSS_SHOT_INTERVAL
+	else:
+		for alien in aliens:
+			if alien["col"] == shooter["col"] and alien["p"].y > shooter["p"].y:
+				shooter = alien
+		enemy_shots.append(shooter["p"] + Vector2(0, 23))
+		enemy_shot_delay = maxf(0.36, 1.15 - wave * 0.07) * randf_range(0.75, 1.35)
+	alien_shot_player.play()
+
+
+func _enemy_bullet_speed() -> float:
+	return ENEMY_SHOT_SPEED + wave * 14.0
+
+
+func _update_player_bonuses(delta: float) -> void:
+	rapid_fire_left = maxf(0.0, rapid_fire_left - delta)
+	piercing_left = maxf(0.0, piercing_left - delta)
+	shield_flash = maxf(0.0, shield_flash - delta)
+	power_message_left = maxf(0.0, power_message_left - delta)
+	var had_triple := triple_fire_left > 0.0
+	triple_fire_left = maxf(0.0, triple_fire_left - delta)
+	if had_triple and triple_fire_left == 0.0:
+		power_message = "VOLVISTE A DOBLE CAÑÓN"
+		power_message_left = 2.5
+
+
+func _player_cannon_count() -> int:
+	if triple_fire_left > 0.0:
+		return 3
+	return 2 if dual_cannons else 1
+
+
+func _player_color() -> Color:
+	match _player_cannon_count():
+		3: return VIOLET
+		2: return SHIP_BLUE
+	return CYAN
+
+
+func _player_margin() -> float:
+	match _player_cannon_count():
+		3: return 52.0
+		2: return 47.0
+	return 38.0
+
+
+func _player_hit_half_width() -> float:
+	match _player_cannon_count():
+		3: return 41.0
+		2: return 35.0
+	return 25.0
+
+
+func _shield_width_scale() -> float:
+	return 1.35 if _player_cannon_count() == 3 else (1.2 if dual_cannons else 1.0)
+
+
+func _fire_player_shots() -> void:
+	# Los disparos nacen en cada pico real del sprite, no en un cañon central.
+	var offsets: Array[float] = [0.0]
+	var muzzle_y := PLAYER_Y - 28.0
+	match _player_cannon_count():
+		2:
+			offsets = [-20.0, 20.0]
+			muzzle_y = PLAYER_Y - 29.0
+		3:
+			offsets = [-30.0, 0.0, 30.0]
+			muzzle_y = PLAYER_Y - 32.0
+	for offset in offsets:
+		player_shots.append({"p": Vector2(player_x + offset, muzzle_y), "hit_ids": {}})
+
+
+func _power_up_kind(roll: float) -> String:
+	if roll < 0.225:
+		return "shield"
+	if roll < 0.450:
+		return "rapid"
+	if roll < 0.675:
+		return "weapon"
+	if roll < 0.900:
+		return "piercing"
+	return "repair"
+
+
+func _update_power_ups(delta: float) -> void:
+	# Al vencer el intervalo queda listo hasta la proxima baja del jugador.
+	power_drop_delay = maxf(0.0, power_drop_delay - delta)
+	bomb_drop_delay = maxf(0.0, bomb_drop_delay - delta)
+	life_drop_delay = maxf(0.0, life_drop_delay - delta)
+	for index in range(power_ups.size() - 1, -1, -1):
+		var item: Dictionary = power_ups[index]
+		var previous_y: float = item["p"].y
+		var is_bomb: bool = item["kind"] == "bomb"
+		item["p"].y += _enemy_bullet_speed() * (0.6 if is_bomb else 0.5) * delta
+		# Barrido vertical: tampoco se pierde la recogida si cae un frame largo.
+		if absf(item["p"].x - player_x) < (56.0 if is_bomb else 48.0) and previous_y <= PLAYER_Y + 34.0 and item["p"].y >= PLAYER_Y - 34.0:
+			power_ups.remove_at(index)
+			_apply_power_up(item["kind"])
+			if not is_bomb:
+				power_pickup_player.play()
+		elif item["p"].y > H + 30.0:
+			power_ups.remove_at(index)
+
+
+func _try_drop_power_up(at: Vector2) -> void:
+	if power_drop_delay > 0.0:
+		return
+	power_ups.append({
+		"p": at,
+		"kind": _power_up_kind(randf()),
+		"phase": randf_range(0.0, TAU)
+	})
+	_explode(at, GOLD)
+	# Reiniciar solo al soltarlo: varias bajas juntas no multiplican el bonus.
+	power_drop_delay = randf_range(NEXT_POWER_DELAY.x, NEXT_POWER_DELAY.y)
+
+
+func _apply_power_up(kind: String) -> void:
+	match kind:
+		"bomb":
+			_detonate_bomb()
+		"life":
+			lives += 1
+			power_message = "1UP - VIDA EXTRA"
+			_explode(Vector2(player_x, PLAYER_Y), GREEN)
+		"piercing":
+			piercing_left = PIERCING_DURATION
+			power_message = "RAYOS PERFORANTES POR 10 SEGUNDOS"
+			_explode(Vector2(player_x, PLAYER_Y), CYAN)
+		"shield":
+			# Protege de un impacto frontal. Recoger otro lo recarga, no acumula.
+			if shield_active:
+				return
+			shield_active = true
+			power_message = "ESCUDO FRONTAL LISTO"
+			_explode(Vector2(player_x, PLAYER_Y - 30.0), VIOLET)
+		"rapid":
+			# Repetir el mismo bonus renueva los diez segundos.
+			rapid_fire_left = RAPID_FIRE_DURATION
+			shot_delay = minf(shot_delay, NORMAL_SHOT_DELAY * 0.5)
+			power_message = "FUEGO X2 DURANTE 10 SEGUNDOS"
+			_explode(Vector2(player_x, PLAYER_Y), GOLD)
+		"weapon":
+			if dual_cannons:
+				triple_fire_left = TRIPLE_FIRE_DURATION
+				power_message = "TRIPLE CAÑÓN DURANTE 10 SEGUNDOS"
+			else:
+				dual_cannons = true
+				power_message = "DOBLE CAÑÓN ACTIVADO"
+			player_x = clampf(player_x, _player_margin(), W - _player_margin())
+			_explode(Vector2(player_x, PLAYER_Y), _player_color())
+		"repair":
+			_create_barriers()
+			power_message = "BARRERAS RESTAURADAS"
+			var bunker_count := 3 if portrait else 4
+			for bunker in range(bunker_count):
+				_explode(Vector2(W * (bunker + 0.5) / bunker_count, H - 160.0), GREEN)
+	power_message_left = 2.5
+
+
+func _try_drop_bomb(at: Vector2) -> void:
+	if bomb_drop_delay > 0.0:
+		return
+	power_ups.append({"p": at, "kind": "bomb", "phase": randf_range(0.0, TAU)})
+	bomb_drop_delay = randf_range(NEXT_BOMB_DELAY.x, NEXT_BOMB_DELAY.y)
+
+
+func _defeat_alien(index: int, play_sound: bool = true, drop_bomb: bool = true) -> void:
+	var alien: Dictionary = aliens[index]
+	score += (1500 + int(wave / 10) * 500) if alien.get("boss", false) else (3 - alien["kind"]) * 10
+	_explode(alien["p"], _alien_color(alien["kind"]))
+	_try_drop_power_up(alien["p"])
+	if drop_bomb:
+		_try_drop_bomb(alien["p"])
+		_try_drop_life(alien["p"])
+	aliens.remove_at(index)
+	if play_sound:
+		alien_explosion_player.play()
+
+
+func _try_drop_life(at: Vector2) -> void:
+	# Temporizador propio: puede coincidir con una bomba en la misma baja.
+	if life_drop_delay > 0.0:
+		return
+	var side := 62.0 if at.x <= W - 90.0 else -62.0
+	var position := Vector2(clampf(at.x + side, 35.0, W - 35.0), at.y)
+	power_ups.append({"p": position, "kind": "life", "phase": randf_range(0.0, TAU)})
+	life_drop_delay = randf_range(NEXT_BOMB_DELAY.x, NEXT_BOMB_DELAY.y)
+
+
+func _detonate_bomb() -> void:
+	# Compartir la misma baja garantiza los puntos y las P pendientes.
+	for index in range(aliens.size() - 1, -1, -1):
+		_defeat_alien(index, false, false)
+	enemy_shots.clear()
+	player_shots.clear()
+	bomb_flash = 0.5
+	bomb_wave_delay = 0.6
+	bomb_player.play()
+	power_message = "BOMBA: INVASORES ELIMINADOS"
+
+
 func _move_aliens(delta: float) -> void:
-	var speed := 33.0 + wave * 10.0 + (40 - aliens.size()) * 1.1
-	var hit_edge := false
-
-	for i in range(aliens.size()):
-		var alien: Dictionary = aliens[i]
-		alien["p"] += Vector2(enemy_direction * speed * delta, 0)
-		aliens[i] = alien
-		if alien["p"].x < 30.0 or alien["p"].x > W - 30.0:
-			hit_edge = true
-
-	if hit_edge:
-		enemy_direction *= -1.0
-		for i in range(aliens.size()):
-			var alien: Dictionary = aliens[i]
-			alien["p"] += Vector2(enemy_direction * 7.0, 22.0)
-			aliens[i] = alien
+	if not aliens.is_empty() and aliens[0].get("boss", false):
+		var boss: Dictionary = aliens[0]
+		boss["flash"] = maxf(0.0, boss["flash"] - delta)
+		var margin := BOSS_SIZE / 2.0 + 16.0
+		boss["p"].x += enemy_direction * 26.0 * delta
+		if boss["p"].x < margin or boss["p"].x > W - margin:
+			boss["p"].x = clampf(boss["p"].x, margin, W - margin)
+			enemy_direction *= -1.0
+		return
+	for row in range(alien_rows.size()):
+		var indices: Array[int] = []
+		var left := W
+		var right := 0.0
+		for index in range(aliens.size()):
+			if aliens[index]["row"] == row:
+				indices.append(index)
+				left = minf(left, aliens[index]["p"].x)
+				right = maxf(right, aliens[index]["p"].x)
+		if indices.is_empty():
+			continue
+		var movement: Dictionary = alien_rows[row]
+		var dx: float = movement["direction"] * movement["speed"] * delta
+		var descent := 0.0
+		if left + dx < 30.0:
+			dx = 30.0 - left
+			movement["direction"] = 1.0
+			descent = 22.0
+		elif right + dx > W - 30.0:
+			dx = W - 30.0 - right
+			movement["direction"] = -1.0
+			descent = 22.0
+		for index in indices:
+			aliens[index]["p"] += Vector2(dx, descent)
 
 	for alien in aliens:
 		if alien["p"].y >= PLAYER_Y - 34.0:
@@ -649,32 +985,41 @@ func _move_aliens(delta: float) -> void:
 
 func _update_player_shots(delta: float) -> void:
 	for i in range(player_shots.size() - 1, -1, -1):
-		var bullet: Vector2 = player_shots[i] + Vector2(0, -SHOT_SPEED * delta)
-		if bullet.y < 75.0:
-			player_shots.remove_at(i)
-			continue
-
-		var hit := false
-		for j in range(aliens.size() - 1, -1, -1):
-			var alien: Dictionary = aliens[j]
+		# Aceptar tambien posiciones simples para escenas/pruebas anteriores.
+		var shot: Dictionary = player_shots[i] if player_shots[i] is Dictionary else {"p": player_shots[i], "hit_ids": {}}
+		var previous: Vector2 = shot["p"]
+		var bullet := previous + Vector2(0, -SHOT_SPEED * delta)
+		var targets: Array[Dictionary] = []
+		for alien in aliens:
 			var hit_radius := minf(23.0, W * 0.035)
-			if absf(bullet.x - alien["p"].x) < hit_radius and absf(bullet.y - alien["p"].y) < hit_radius:
-				score += (3 - alien["kind"]) * 10
-				alien_explosion_player.play()
-				_explode(alien["p"], _alien_color(alien["kind"]))
-				aliens.remove_at(j)
-				hit = true
+			if alien.get("boss", false):
+				hit_radius = BOSS_SIZE * 0.42
+			if not shot["hit_ids"].has(alien["id"]) and absf(bullet.x - alien["p"].x) < hit_radius and previous.y >= alien["p"].y - hit_radius and bullet.y <= alien["p"].y + hit_radius:
+				targets.append(alien)
+		# Primero el alien mas cercano a la nave, aun con frames largos.
+		targets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["p"].y > b["p"].y)
+		var consumed := false
+		for alien in targets:
+			shot["hit_ids"][alien["id"]] = true
+			if alien.get("boss", false) and alien["hp"] > 1:
+				alien["hp"] -= 1
+				alien["flash"] = 0.08
+			else:
+				_defeat_alien(aliens.find(alien))
+			if piercing_left <= 0.0:
+				consumed = true
 				break
-
-		if hit:
+		if consumed or bullet.y < 75.0:
 			player_shots.remove_at(i)
 		else:
-			player_shots[i] = bullet
+			shot["p"] = bullet
+			player_shots[i] = shot
 
 
 func _update_enemy_shots(delta: float) -> void:
 	for i in range(enemy_shots.size() - 1, -1, -1):
-		var bullet: Vector2 = enemy_shots[i] + Vector2(0, (ENEMY_SHOT_SPEED + wave * 14.0) * delta)
+		var previous_y: float = enemy_shots[i].y
+		var bullet: Vector2 = enemy_shots[i] + Vector2(0, _enemy_bullet_speed() * delta)
 		if bullet.y > H:
 			enemy_shots.remove_at(i)
 			continue
@@ -683,7 +1028,14 @@ func _update_enemy_shots(delta: float) -> void:
 			enemy_shots.remove_at(i)
 			continue
 
-		if invulnerable <= 0.0 and absf(bullet.x - player_x) < 25.0 and absf(bullet.y - PLAYER_Y) < 20.0:
+		if shield_active and absf(bullet.x - player_x) < 44.0 * _shield_width_scale() and previous_y <= PLAYER_Y - 12.0 and bullet.y >= PLAYER_Y - 43.0:
+			enemy_shots.remove_at(i)
+			shield_active = false
+			shield_flash = 0.25
+			_explode(Vector2(bullet.x, PLAYER_Y - 34.0), VIOLET)
+			continue
+
+		if invulnerable <= 0.0 and absf(bullet.x - player_x) < _player_hit_half_width() and absf(bullet.y - PLAYER_Y) < 20.0:
 			enemy_shots.remove_at(i)
 			_explode(Vector2(player_x, PLAYER_Y), CYAN)
 			lives -= 1
@@ -760,6 +1112,7 @@ func _draw() -> void:
 		Rect2(0, 0, W, H),
 		Rect2((background_size - visible_region) / 2.0, visible_region)
 	)
+	draw_rect(Rect2(0, 0, W, H), Color(0.005, 0.008, 0.02, BACKGROUND_DARKNESS))
 	for star in stars:
 		var alpha: float = 0.3 + 0.38 * (0.5 + 0.5 * sin(clock * 1.7 + star["phase"]))
 		draw_circle(star["p"], star["r"], Color(0.7, 0.8, 1.0, alpha))
@@ -774,29 +1127,58 @@ func _draw() -> void:
 	_draw_arcade_text(Vector2(16, 44), score_label, HORIZONTAL_ALIGNMENT_LEFT, hud_width, 16, CYAN)
 	_draw_arcade_text(Vector2(W / 3.0 + 10, 44), "OLEADA %02d" % wave, HORIZONTAL_ALIGNMENT_CENTER, hud_width, 16, WHITE)
 	_draw_arcade_text(Vector2(W * 2.0 / 3.0 + 4, 44), "VIDAS: %d" % lives, HORIZONTAL_ALIGNMENT_RIGHT, hud_width, 16, GOLD)
+	var active_bonuses: Array[String] = []
+	if shield_active:
+		active_bonuses.append("ESCUDO LISTO")
+	if rapid_fire_left > 0.0:
+		active_bonuses.append("FUEGO X2: %02dS" % int(ceilf(rapid_fire_left)))
+	if piercing_left > 0.0:
+		active_bonuses.append("PERFORANTE: %02dS" % int(ceilf(piercing_left)))
+	if triple_fire_left > 0.0:
+		active_bonuses.append("TRIPLE: %02dS" % int(ceilf(triple_fire_left)))
+	elif dual_cannons:
+		active_bonuses.append("DOBLE CAÑÓN")
+	_draw_arcade_text(Vector2(16, 66), " | ".join(active_bonuses), HORIZONTAL_ALIGNMENT_CENTER, W - 32, 8 if portrait else 16, _player_color())
 
 	for block in barriers:
 		var color: Color = GREEN if block["hp"] == 2 else Color(0.24, 0.54, 0.36)
 		draw_rect(Rect2(block["p"], Vector2(14, 13)), color)
 
 	for alien in aliens:
-		var sprite_size := minf(48.0, W * 0.075)
-		draw_texture_rect(
-			ALIEN_TEXTURES[alien["kind"]],
-			Rect2(alien["p"] - Vector2.ONE * sprite_size / 2.0, Vector2.ONE * sprite_size),
-			false
-		)
+		if alien.get("boss", false):
+			var bar := Rect2(40, 108, W - 80, 6)
+			draw_rect(bar, Color(0.2, 0.08, 0.15))
+			draw_rect(Rect2(bar.position, Vector2(bar.size.x * float(alien["hp"]) / BOSS_HEALTH, bar.size.y)), PINK)
+			if power_message_left <= 0.0:
+				_draw_arcade_text(Vector2(16, 100), "JEFE NIVEL %d - %d/%d" % [wave, alien["hp"], BOSS_HEALTH], HORIZONTAL_ALIGNMENT_CENTER, W - 32, 8, GOLD)
+		_draw_alien(alien)
 
 	if mode != "game_over" or lives > 0:
 		if invulnerable <= 0.0 or int(clock * 11.0) % 2 == 0:
-			_draw_pixels(PLAYER_SPRITE, Vector2(player_x, PLAYER_Y), CYAN, 5.0)
+			_draw_player()
+		if shield_active or shield_flash > 0.0:
+			_draw_player_shield()
+	for item in power_ups:
+		if item["kind"] == "bomb":
+			_draw_bomb(item["p"], item["phase"])
+		elif item["kind"] == "life":
+			_draw_life(item["p"], item["phase"])
+		else:
+			_draw_power_up(item["p"], item["phase"])
+	if power_message_left > 0.0:
+		_draw_arcade_text(Vector2(16, 100), power_message, HORIZONTAL_ALIGNMENT_CENTER, W - 32, 8 if portrait else 16, GOLD)
 
-	for bullet in player_shots:
-		draw_rect(Rect2(bullet.x - 2.5, bullet.y - 11.0, 5.0, 18.0), CYAN)
+	for shot in player_shots:
+		var bullet: Vector2 = shot["p"] if shot is Dictionary else shot
+		if piercing_left > 0.0:
+			draw_rect(Rect2(bullet.x - 5, bullet.y - 15, 10, 27), Color(CYAN, 0.15))
+		draw_rect(Rect2(bullet.x - 2.5, bullet.y - 11.0, 5.0, 18.0), WHITE if piercing_left > 0.0 else _player_color())
 	for bullet in enemy_shots:
 		draw_rect(Rect2(bullet.x - 2.5, bullet.y - 7.0, 5.0, 14.0), PINK)
 	for spark in particles:
 		draw_circle(spark["p"], 2.5, spark["color"])
+	if bomb_flash > 0.0:
+		draw_rect(Rect2(0, 77, W, H - 112), Color(1.0, 0.55, 0.15, bomb_flash * 0.35))
 
 	if mode == "menu":
 		_overlay("GROOVA INVASORES", "TOCA PARA EMPEZAR" if mobile else "ENTER PARA EMPEZAR", "Manten las flechas y FUEGO" if mobile else "A / D o flechas: mover | ESPACIO: disparar")
@@ -814,8 +1196,97 @@ func _draw_touch_controls() -> void:
 	_draw_touch_button(TOUCH_LEFT, "<", CYAN, touch_actions.values().has("left"))
 	_draw_touch_button(TOUCH_RIGHT, ">", CYAN, touch_actions.values().has("right"))
 	_draw_touch_button(TOUCH_FIRE, "FUEGO", PINK, touch_actions.values().has("fire"))
-	var pause_label := "CONTINUAR" if mode == "paused" else "PAUSA"
-	_draw_touch_button(TOUCH_PAUSE, pause_label, GOLD, false)
+
+
+func _alien_animation_frame(row: int = 0) -> int:
+	return int((alien_animation_clock + row * 0.11) / ALIEN_FRAME_DURATION) % 3
+
+
+func _draw_alien(alien: Dictionary) -> void:
+	var at: Vector2 = alien["p"]
+	var pixel_size := 12.0 if alien.get("boss", false) else 3.0
+	var row: int = alien.get("row", 0)
+	var color := _alien_color(alien["kind"])
+	if alien.get("flash", 0.0) > 0.0:
+		color = WHITE
+	var pulse := 0.75 + 0.25 * sin(alien_animation_clock * 4.0 + row)
+	for layer in range(3, 0, -1):
+		draw_circle(at, pixel_size * (5.0 + layer), Color(color, 0.018 * pulse))
+	var pattern: Array = ALIEN_HEAD + ALIEN_LEGS[_alien_animation_frame(row)]
+	_draw_pixels(pattern, at, color, pixel_size)
+	# Reflejos de los ojos dentro de la silueta, sin una textura externa.
+	for eye_x in [-3.0, 3.0]:
+		draw_rect(Rect2(at + Vector2(eye_x - 0.5, -1.5) * pixel_size, Vector2.ONE * pixel_size * 0.7), Color(WHITE, 0.85))
+
+
+func _draw_power_up(at: Vector2, phase: float) -> void:
+	var pulse := 0.75 + 0.25 * sin(clock * 7.0 + phase)
+	for layer in range(4, 0, -1):
+		draw_circle(at, 16.0 + layer * 5.0, Color(GOLD, 0.025 * pulse))
+	_draw_pixels(POWER_BOLT, at + Vector2(-2, -2), GOLD, 3.0)
+	for offset in [Vector2(-2, 0), Vector2(2, 0), Vector2(0, -2), Vector2(0, 2)]:
+		_draw_pixels(POWER_P, at + Vector2(4, 3) + offset, DARK, 3.0)
+	_draw_pixels(POWER_P, at + Vector2(4, 3), Color(WHITE, 0.8 + pulse * 0.2), 3.0)
+
+
+func _draw_life(at: Vector2, phase: float) -> void:
+	var pulse := 0.7 + 0.3 * sin(clock * 7.0 + phase)
+	for layer in range(3, 0, -1):
+		draw_rect(Rect2(at - Vector2(28 + layer * 3, 16 + layer * 3), Vector2(56 + layer * 6, 32 + layer * 6)), Color(GREEN, 0.025 * pulse))
+	draw_rect(Rect2(at - Vector2(29, 17), Vector2(58, 34)), DARK)
+	draw_rect(Rect2(at - Vector2(29, 17), Vector2(58, 34)), GREEN, false, 2.0)
+	_draw_arcade_text(at + Vector2(-28, 7), "1UP", HORIZONTAL_ALIGNMENT_CENTER, 56, 16, Color(GREEN, pulse))
+
+
+func _draw_bomb(at: Vector2, phase: float) -> void:
+	var pulse := 0.7 + 0.3 * sin(clock * 9.0 + phase)
+	for layer in range(4, 0, -1):
+		draw_circle(at, 18.0 + layer * 4.0, Color(PINK, 0.03 * pulse))
+	_draw_pixels(BOMB_SPRITE, at, Color(0.40, 0.44, 0.58), 3.0)
+	draw_rect(Rect2(at + Vector2(-7, -2), Vector2(6, 3)), WHITE)
+	draw_rect(Rect2(at + Vector2(-10, 1), Vector2(3, 6)), WHITE)
+	var spark := at + Vector2(10, -22)
+	draw_rect(Rect2(spark - Vector2(1.5, 5), Vector2(3, 10)), Color(GOLD, pulse))
+	draw_rect(Rect2(spark - Vector2(5, 1.5), Vector2(10, 3)), Color(GOLD, pulse))
+
+
+func _draw_player() -> void:
+	var center := Vector2(player_x, PLAYER_Y)
+	match _player_cannon_count():
+		1:
+			_draw_pixels(PLAYER_SPRITE, center, CYAN, 5.0)
+		2:
+			_draw_pixels(PLAYER_DOUBLE_SPRITE, center, SHIP_BLUE, 5.0)
+			_draw_pixels(["0110", "1111", "0110"], center + Vector2(0, 2), CYAN, 2.0)
+			for offset in [-20.0, 20.0]:
+				draw_rect(Rect2(center + Vector2(offset - 1.5, -21), Vector2(3, 7)), WHITE)
+				draw_rect(Rect2(center + Vector2(offset - 3, 18), Vector2(6, 5)), GOLD)
+		3:
+			_draw_pixels(PLAYER_TRIPLE_SPRITE, center, VIOLET, 5.0)
+			_draw_pixels(["00100", "01110", "11111", "01110", "00100"], center, WHITE, 2.0)
+			for offset in [-30.0, 0.0, 30.0]:
+				draw_rect(Rect2(center + Vector2(offset - 1.5, -24), Vector2(3, 8)), CYAN)
+			for offset in [-23.0, 23.0]:
+				draw_rect(Rect2(center + Vector2(offset - 4, 6), Vector2(8, 3)), PINK)
+				draw_rect(Rect2(center + Vector2(offset - 3, 22), Vector2(6, 6)), GOLD)
+
+
+func _draw_player_shield() -> void:
+	# Arco escalonado hacia los enemigos, con varias capas de aura violeta.
+	var arc := PackedVector2Array([
+		Vector2(-42, -7), Vector2(-42, -22), Vector2(-30, -22),
+		Vector2(-30, -34), Vector2(-14, -34), Vector2(-14, -40),
+		Vector2(14, -40), Vector2(14, -34), Vector2(30, -34),
+		Vector2(30, -22), Vector2(42, -22), Vector2(42, -7)
+	])
+	for index in range(arc.size()):
+		arc[index].x *= _shield_width_scale()
+		arc[index] += Vector2(player_x, PLAYER_Y)
+	var pulse := 0.8 + 0.2 * sin(clock * 6.0)
+	draw_polyline(arc, Color(VIOLET, 0.05 * pulse), 20.0)
+	draw_polyline(arc, Color(VIOLET, 0.12 * pulse), 12.0)
+	draw_polyline(arc, Color(VIOLET, 0.35 * pulse), 6.0)
+	draw_polyline(arc, Color(VIOLET, pulse), 2.0)
 
 
 func _draw_touch_button(rect: Rect2, label: String, color: Color, pressed: bool) -> void:

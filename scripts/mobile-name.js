@@ -82,15 +82,17 @@
         document.exitFullscreen?.().then(() => focusName()).catch(() => {});
       }
       const bounds = canvas.getBoundingClientRect();
-      const scaleX = bounds.width / state.width;
-      const scaleY = bounds.height / state.height;
+      const scaleX = Math.min(bounds.width / state.width, bounds.height / state.height);
+      const scaleY = scaleX;
+      const contentLeft = bounds.left + (bounds.width - state.width * scaleX) / 2;
+      const contentTop = bounds.top + (bounds.height - state.height * scaleY) / 2;
       hitbox = {
-        left: bounds.left + state.x * scaleX, top: bounds.top + state.y * scaleY,
-        right: bounds.left + (state.x + state.w) * scaleX, bottom: bounds.top + (state.y + state.h) * scaleY
+        left: contentLeft + state.x * scaleX, top: contentTop + state.y * scaleY,
+        right: contentLeft + (state.x + state.w) * scaleX, bottom: contentTop + (state.y + state.h) * scaleY
       };
       Object.assign(input.style, {
-        display: 'block', left: `${bounds.left + state.x * scaleX}px`,
-        top: `${bounds.top + state.y * scaleY}px`, width: `${state.w * scaleX}px`,
+        display: 'block', left: `${contentLeft + state.x * scaleX}px`,
+        top: `${contentTop + state.y * scaleY}px`, width: `${state.w * scaleX}px`,
         height: `${state.h * scaleY}px`, fontSize: `${Math.max(16, 16 * scaleX)}px`
       });
       visible = true;
