@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bq0xetofwtwdl"]
+
+[ext_resource type="Script" uid="uid://cgrl8myl4rrt2" path="res://Main.gd" id="1"]
+
+[node name="InvasoresPixel" type="Node2D" unique_id=961720640]
+script = ExtResource("1")

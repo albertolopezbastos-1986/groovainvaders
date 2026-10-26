@@ -1,0 +1,67 @@
+INVASORES PIXEL - Godot 4 Standard (GDScript)
+
+1. Descomprimir el ZIP en una carpeta.
+2. Abrir Godot 4 Standard > Importar.
+3. Elegir el archivo project.godot.
+4. Abrir el proyecto y pulsar F5.
+
+Controles:
+- Flechas izquierda/derecha o A/D: mover
+- Barra espaciadora: disparar (se puede mantener presionada)
+- Enter: empezar / reiniciar
+- P: pausa
+- En pausa: P, Enter o Espacio para continuar; en PC tambien un clic.
+- En Web: hacer clic dentro del juego para recuperar el foco del teclado.
+
+Controles tactiles (aparecen automaticamente en celulares):
+- Botones < y >: mantener para mover.
+- FUEGO: mantener para disparar; se puede mover y disparar con dos dedos.
+- PAUSA / CONTINUAR: pausar o seguir.
+- Tocar el cartel central para empezar o reiniciar.
+Los controles tienen una franja propia debajo del juego.
+El juego detecta Android, iPhone/iPad y navegadores moviles.
+La pantalla se adapta al formato vertical u horizontal sin deformar sprites.
+Girar el celular conserva la partida. En PC se muestra el juego con teclado.
+Para probar en navegador de escritorio, activar la emulacion de un celular
+en las herramientas del navegador y recargar la pagina.
+Despues de modificar el proyecto, exportar Web de nuevo y subir todos los archivos.
+
+Incluye: 40 enemigos por oleada, enemigos que disparan, puntuacion,
+3 vidas, barreras destructibles, particulas, multiples oleadas.
+Los sprites estan incluidos en assets/aliens: fucsia, verde agua y azul.
+Cada oleada tiene una fila fucsia, una verde agua y dos azules.
+
+Todo el codigo del juego se encuentra en Main.gd.
+
+Tipografia: Press Start 2P, incluida en assets/fonts.
+Todos los textos usan la misma fuente arcade pixelada.
+Licencia SIL Open Font License en assets/fonts/OFL-PressStart2P.txt.
+
+Audio:
+- Musica 8bit-NN en bucle durante menus, juego, pausa y fin de partida.
+- Se reproduce assets/audio/8bit-NN.ogg, una copia comprimida de assets/aliens/8bit-NN.wav para Web.
+- El WAV original y la musica anterior se excluyen de la exportacion para ahorrar peso.
+- Disparo del jugador silencioso; disparo grave alien y explosion arcade corta.
+- Volumenes en _setup_audio() de Main.gd, expresados en decibeles.
+- En Web puede ser necesario tocar o hacer clic para habilitar el audio.
+- Efectos originales generados con assets/audio/generate_sfx.py.
+
+Game Over y ranking:
+- Al perder las tres vidas o llegar los aliens a la nave aparece GAME OVER.
+- Ingresar un nombre de hasta 12 caracteres y pulsar GUARDAR PUNTAJE o Enter.
+- Un nombre vacio se guarda como JUGADOR. Solo se guarda una vez por partida.
+- Se muestran las 10 mejores puntuaciones, de mayor a menor.
+- Los empates conservan primero la partida mas antigua.
+- VOLVER A JUGAR inicia otra partida; la musica sigue sonando.
+- Ranking MUNDIAL online con Netlify Functions y Blobs, compartido por dispositivos.
+- Guarda nombre, puntaje y fecha UTC; destaca la partida actual en verde si entra al Top 10.
+- Los resultados locales anteriores no se mezclan con los mundiales.
+- Volver a jugar siempre esta disponible, incluso mientras se guarda o si no hay conexion.
+- Si falla el guardado, se informa el error y se permite reintentar o jugar otra vez.
+- En celular se puede tocar el campo para abrir el teclado y deslizar el panel.
+
+Publicacion y pruebas:
+Leer PUBLICAR_NETLIFY.md. Exportar a web/index.html y publicar codigo + funciones
+con Netlify CLI o Git. Arrastrar solamente la carpeta del juego a Drop no alcanza.
+npm test: pruebas del backend.
+npm run test:online: pruebas con Godot y servidor HTTP local de prueba.
