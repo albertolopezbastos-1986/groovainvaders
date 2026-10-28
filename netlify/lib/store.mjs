@@ -4,5 +4,5 @@ export function scoreStore(context) {
   // Almacen del sitio, no del deploy: conserva el ranking en futuras publicaciones.
   // Los previews y netlify dev nunca escriben en el ranking de produccion.
   const production = context?.deploy?.context === 'production';
-  return getStore({ name: production ? 'invasores-world-v1' : 'invasores-world-test-v1', consistency: 'strong' });
+  return getStore({ name: production ? 'invasores-world-v2' : 'invasores-world-test-v1', consistency: 'strong' });
 }

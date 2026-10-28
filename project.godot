@@ -14,7 +14,11 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="Invasores Pixel"
+config/name="Groova Invasores"
+boot_splash/image="res://assets/logo4k2.png"
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/scale=true
+config/icon="res://assets/logo4k2.png"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 

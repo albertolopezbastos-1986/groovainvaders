@@ -57,7 +57,8 @@ const WHITE := Color(0.93, 0.95, 1.0)
 const DARK := Color(0.035, 0.045, 0.09)
 const UNIVERSE_BACKGROUND := preload("res://assets/aliens/alienfondo.png")
 const ARCADE_FONT: FontFile = preload("res://assets/fonts/PressStart2P-Regular.ttf")
-const MUSIC: AudioStreamOggVorbis = preload("res://assets/audio/8bit-NN.ogg")
+const START_LOGO: Texture2D = preload("res://assets/1-blanco.png")
+const MUSIC: AudioStreamWAV = preload("res://assets/audio/NN.wav")
 const ALIEN_SHOT_SOUND: AudioStream = preload("res://assets/audio/alien_shot.wav")
 const ALIEN_EXPLOSION_SOUND: AudioStream = preload("res://assets/audio/alien_explosion.wav")
 const POWER_PICKUP_SOUND: AudioStream = preload("res://assets/audio/power_pickup.wav")
@@ -145,6 +146,7 @@ var particles: Array = []
 var stars: Array = []
 var touch_actions: Dictionary = {}
 var music_player: AudioStreamPlayer
+var application_in_background := false
 var alien_shot_player: AudioStreamPlayer
 var alien_explosion_player: AudioStreamPlayer
 var power_pickup_player: AudioStreamPlayer
@@ -384,8 +386,10 @@ func _update_ranking_rows() -> void:
 
 func _setup_audio() -> void:
 	# Copia mutable: configurar el bucle sin modificar el recurso constante.
-	var looping_music: AudioStreamOggVorbis = MUSIC.duplicate() as AudioStreamOggVorbis
-	looping_music.loop = true
+	var looping_music: AudioStreamWAV = MUSIC.duplicate() as AudioStreamWAV
+	looping_music.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	looping_music.loop_begin = 0
+	looping_music.loop_end = int(looping_music.get_length() * looping_music.mix_rate)
 	music_player = _create_audio_player("Music", looping_music, -16.0, 1)
 	alien_shot_player = _create_audio_player("AlienShot", ALIEN_SHOT_SOUND, -22.0, 2)
 	alien_explosion_player = _create_audio_player("AlienExplosion", ALIEN_EXPLOSION_SOUND, -17.0, 4)
@@ -407,6 +411,8 @@ func _create_audio_player(player_name: String, stream: AudioStream, volume: floa
 
 func _ensure_music_playing() -> void:
 	# La musica no se reinicia al comenzar, pausar, morir ni cambiar de oleada.
+	if application_in_background:
+		return
 	if is_instance_valid(music_player) and not music_player.playing:
 		music_player.play()
 
@@ -500,9 +506,17 @@ func _handle_keyboard(event: InputEventKey) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		application_in_background = true
+		if is_instance_valid(music_player):
+			music_player.stream_paused = true
 		touch_actions.clear()
 		if mode == "playing":
 			mode = "paused"
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		application_in_background = false
+		if is_instance_valid(music_player):
+			music_player.stream_paused = false
+			_ensure_music_playing()
 
 
 func _toggle_pause() -> void:
@@ -1181,7 +1195,7 @@ func _draw() -> void:
 		draw_rect(Rect2(0, 77, W, H - 112), Color(1.0, 0.55, 0.15, bomb_flash * 0.35))
 
 	if mode == "menu":
-		_overlay("GROOVA INVASORES", "TOCA PARA EMPEZAR" if mobile else "ENTER PARA EMPEZAR", "Manten las flechas y FUEGO" if mobile else "A / D o flechas: mover | ESPACIO: disparar")
+		_overlay("", "TOCA PARA EMPEZAR" if mobile else "ENTER PARA EMPEZAR", "Manten las flechas y FUEGO" if mobile else "A / D o flechas: mover | ESPACIO: disparar", true)
 	elif mode == "paused":
 		_overlay("PAUSA", "TOCA CONTINUAR" if mobile else "P / ENTER PARA CONTINUAR", "" if mobile else "O hace clic en el juego")
 
@@ -1312,12 +1326,18 @@ func _touch_button_style(color: Color, pressed: bool) -> StyleBoxFlat:
 	return style
 
 
-func _overlay(title: String, subtitle: String, help: String) -> void:
-	var panel := Rect2(24, H / 2.0 - 150, W - 48, 302)
+func _overlay(title: String, subtitle: String, help: String, show_logo: bool = false) -> void:
+	var panel_height := 420.0 if show_logo else 302.0
+	var panel := Rect2(24, H / 2.0 - panel_height / 2.0, W - 48, panel_height)
 	draw_rect(panel, Color(0.02, 0.04, 0.10, 0.95))
 	draw_rect(panel, CYAN, false, 2.0)
 	var text_width := panel.size.x - 32
 	var text_x := panel.position.x + 16
-	_draw_arcade_text(Vector2(text_x, panel.position.y + 95), title, HORIZONTAL_ALIGNMENT_CENTER, text_width, 32 if portrait else 40, CYAN)
-	_draw_arcade_text(Vector2(text_x, panel.position.y + 179), subtitle, HORIZONTAL_ALIGNMENT_CENTER, text_width, 24, GOLD)
-	_draw_arcade_text(Vector2(text_x, panel.position.y + 242), help, HORIZONTAL_ALIGNMENT_CENTER, text_width, 16, WHITE)
+	if show_logo:
+		var logo_scale := minf(text_width / START_LOGO.get_width(), 270.0 / START_LOGO.get_height())
+		var logo_size := START_LOGO.get_size() * logo_scale
+		draw_texture_rect(START_LOGO, Rect2(Vector2(W / 2.0 - logo_size.x / 2.0, panel.position.y + 20 + (270.0 - logo_size.y) / 2.0), logo_size), false)
+	else:
+		_draw_arcade_text(Vector2(text_x, panel.position.y + 95), title, HORIZONTAL_ALIGNMENT_CENTER, text_width, 32 if portrait else 40, CYAN)
+	_draw_arcade_text(Vector2(text_x, panel.position.y + (325 if show_logo else 179)), subtitle, HORIZONTAL_ALIGNMENT_CENTER, text_width, 24, GOLD)
+	_draw_arcade_text(Vector2(text_x, panel.position.y + (388 if show_logo else 242)), help, HORIZONTAL_ALIGNMENT_CENTER, text_width, 16, WHITE)

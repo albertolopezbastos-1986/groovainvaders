@@ -106,7 +106,7 @@ Este flujo necesita tener la exportacion actualizada en el repositorio, porque e
 
 ## Persistencia y concurrencia
 
-- El store de produccion se llama **`invasores-world-v1`**. Es un store del sitio y sobrevive a nuevas publicaciones en ese mismo sitio. No cambies el nombre ni crees otro sitio si queres conservar la tabla.
+- El store de produccion actual se llama **`invasores-world-v2`** (temporada 2). La temporada anterior se conserva en `invasores-world-v1`. Cada store sobrevive a nuevas publicaciones en ese mismo sitio. Cambiar el nombre de produccion e iniciar otro store permite comenzar una temporada vacia sin borrar la anterior.
 - Los previews y desarrollo usan **`invasores-world-test-v1`** y no modifican produccion. El entorno se obtiene de `context.deploy.context` en tiempo de ejecucion.
 - Cada partida usa un id aleatorio de 128 bits. `submissions/<id>` conserva `{id,name,score,date}` con fecha del servidor y creacion condicional `onlyIfNew`.
 - Cada resultado tiene tambien una clave inmutable en `rank/`, ordenada por puntuacion invertida, fecha e id. No se hace leer-modificar-sobrescribir de un archivo global `top10.json`.
